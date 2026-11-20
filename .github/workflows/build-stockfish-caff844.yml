@@ -1,0 +1,55 @@
+name: Build Stockfish caff844 (Windows AVX-512)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows-avx512:
+    runs-on: windows-2022
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - name: Checkout the exact upstream Stockfish revision
+        uses: actions/checkout@v4
+        with:
+          repository: official-stockfish/Stockfish
+          ref: caff844556ecbee574cfc498c1fc029d094536be
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Install the Windows GCC/Make toolchain on the hosted runner
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            mingw-w64-x86_64-gcc
+            make
+            git
+            curl
+            zip
+
+      - name: Build native Windows binary optimized for Ryzen 7900X AVX-512
+        run: |
+          set -e
+          test "$(git rev-parse HEAD)" = "caff844556ecbee574cfc498c1fc029d094536be"
+          make -C src -j4 build ARCH=x86-64-avx512icl COMP=mingw
+          test -s src/stockfish.exe
+          cp src/stockfish.exe stockfish-caff844-windows-x64-avx512icl.exe
+          sha256sum stockfish-caff844-windows-x64-avx512icl.exe > SHA256SUMS.txt
+
+      - name: Upload Windows executable and provenance
+        uses: actions/upload-artifact@v4
+        with:
+          name: stockfish-caff844-windows-x64-avx512icl
+          path: |
+            stockfish-caff844-windows-x64-avx512icl.exe
+            SHA256SUMS.txt
+            Copying.txt
+          if-no-files-found: error
+          retention-days: 14
